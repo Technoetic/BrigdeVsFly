@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern Wars: Bridge vs Flyweight</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #bd00ff;
+            --accent: #ff0055;
+            --glass-bg: rgba(20, 25, 40, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #ffffff;
+            --text-muted: #a0a0c0;
+            --gradient-1: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+        }
+
+        body {
+            background-color: #0f111a;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(189, 0, 255, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.15) 0%, transparent 40%);
+            min-height: 100vh;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        /* Interactive elements explicitly non-selectable */
+        button,
+        .control-panel,
+        .arena-container {
+            user-select: none;
+        }
+
+        /* Glassmorphism Utilities */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            padding: 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 20px rgba(189, 0, 255, 0.3);
+            letter-spacing: -1px;
+        }
+
+        .stats-badge {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            text-align: right;
+        }
+
+        .stat-label {
+            text-align: left;
+        }
+
+        .stat-value {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 1fr;
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1400px;
+            flex: 1;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        /* Bridge Section (Left) */
+        .character-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .model-viewer {
+            width: 120px;
+            height: 120px;
+            background: var(--gradient-1);
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4rem;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .weapon-badge {
+            position: absolute;
+            bottom: -10px;
+            right: -10px;
+            width: 50px;
+            height: 50px;
+            background: #2a2a40;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+            padding: 0.75rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button.active {
+            background: rgba(0, 242, 255, 0.15);
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+        }
+
+        .weapon-btn.active {
+            background: rgba(189, 0, 255, 0.15);
+            border-color: var(--secondary);
+            color: var(--secondary);
+            box-shadow: 0 0 15px rgba(189, 0, 255, 0.2);
+        }
+
+        /* Arena */
+        .arena-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .battle-stage {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 4rem;
+        }
+
+        .combatant {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+
+        .combatant.hero {
+            transform-origin: left;
+        }
+
+        .combatant.monster {
+            transform-origin: right;
+        }
+
+        .combatant-emoji {
+            font-size: 5rem;
+            filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5));
+        }
+
+        .hp-bar-container {
+            width: 100px;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .hp-bar {
+            height: 100%;
+            background: #2ecc71;
+            width: 100%;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+
+        .damage-float {
+            position: absolute;
+            top: -20px;
+            color: #ff3333;
+            font-weight: bold;
+            font-size: 1.5rem;
+            animation: floatUp 0.8s forwards;
+            pointer-events: none;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(0.5);
+            }
+
+            50% {
+                transform: translateY(-30px) scale(1.2);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-50px) scale(1);
+            }
+        }
+
+        .attack-btn-lg {
+            width: 100%;
+            padding: 1.5rem;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            border: none;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .combat-log {
+            height: 150px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            border: 1px solid var(--glass-border);
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        .log-entry.player {
+            color: #81d4fa;
+        }
+
+        .log-entry.enemy {
+            color: #ff8a80;
+        }
+
+        .log-entry.system {
+            color: #bcaaa4;
+            font-style: italic;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Flyweight */
+        .spawner-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .spawner-controls button {
+            flex: 1;
+            font-size: 0.8rem;
+            background: rgba(255, 0, 85, 0.1);
+            border-color: rgba(255, 0, 85, 0.3);
+            color: #ff80ab;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .spawner-controls button:hover {
+            background: rgba(255, 0, 85, 0.2);
+        }
+
+        .spawn-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: var(--active-color, #ff0055);
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        .monster-horde-view {
+            height: 250px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+            gap: 0.5rem;
+            padding-right: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .mini-monster {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 1.2rem;
+            position: relative;
+            border: 1px solid transparent;
+        }
+
+        .mini-monster.active {
+            border-color: var(--accent);
+            background: rgba(255, 0, 85, 0.1);
+        }
+
+        /* Toggle */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.75rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .warning-text {
+            color: #ff5555;
+            font-size: 0.8rem;
+            display: none;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.7;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.7;
+            }
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            border-radius: 34px;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            border-radius: 50%;
+            transition: .4s;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Info */
+        .pattern-info {
+            width: 100%;
+            max-width: 1400px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .code-snippet {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #dcdcea;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid var(--secondary);
+        }
+
+        .highlight {
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
+        }
+
+        .shake {
+            animation: shake 0.3s ease-in-out;
+        }
+
+        .bridge-connector {
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            margin: 1rem 0;
+            position: relative;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="glass-panel">
+        <div style="text-align: left;">
+            <h1>패턴 대결: Bridge vs Flyweight</h1>
+            <p style="color: var(--text-muted); margin-top: 0.5rem;">구조(Structure)와 메모리(Memory)의 만남</p>
+        </div>
+        <div class="stats-badge">
+            <div class="stat-label">활성 (Active)</div>
+            <div id="obj-count" class="stat-value">0</div>
+
+            <div class="stat-label">생성 (Total Spawned)</div>
+            <div id="total-spawned" class="stat-value">0</div>
+
+            <div class="stat-label">RAM (Real)</div>
+            <div id="mem-usage" class="stat-value">0 KB</div>
+
+            <div class="stat-label">공유 객체</div>
+            <div id="fly-count" class="stat-value">0 (Types)</div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Bridge -->
+        <section class="glass-panel control-panel">
+            <h2>Bridge Pattern <span style="font-size:0.8rem; opacity:0.7;">(기능 분리)</span></h2>
+
+            <div class="character-preview">
+                <div id="hero-model" class="model-viewer">
+                    🛡️
+                    <div id="weapon-badge" class="weapon-badge">🗡️</div>
+                </div>
+                <div>
+                    <h3 id="hero-name">전사 (Warrior)</h3>
+                    <p id="hero-desc" style="font-size: 0.9rem; color: var(--text-muted);">무기 구현체와 독립적입니다.</p>
+                </div>
+            </div>
+
+            <div class="bridge-connector"></div>
+
+            <div style="margin-bottom: 2rem;">
+                <p style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted);">Character</p>
+                <div class="controls-grid">
+                    <button class="hero-btn active" data-hero="warrior" onclick="game.setHero('warrior')">
+                        <span>🛡️</span> 전사
+                    </button>
+                    <button class="hero-btn" data-hero="mage" onclick="game.setHero('mage')">
+                        <span>🧙‍♂️</span> 마법사
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <p style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted);">Weapon</p>
+                <div class="controls-grid">
+                    <button class="weapon-btn active" data-weapon="sword" onclick="game.setWeapon('sword')">
+                        <span>🗡️</span> 검
+                    </button>
+                    <button class="weapon-btn" data-weapon="bow" onclick="game.setWeapon('bow')">
+                        <span>🏹</span> 활
+                    </button>
+                    <button class="weapon-btn" data-weapon="staff" onclick="game.setWeapon('staff')">
+                        <span>🔮</span> 지팡이
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Arena -->
+        <section class="arena-container glass-panel">
+            <h2>Battle Arena</h2>
+
+            <div class="battle-stage">
+                <div class="combatant hero" id="arena-hero">
+                    <div class="hp-bar-container">
+                        <div class="hp-bar" style="width: 100%"></div>
+                    </div>
+                    <div class="combatant-emoji" id="arena-hero-emoji">🛡️</div>
+                </div>
+                <div style="font-weight:900; color:rgba(255,255,255,0.1); font-size: 3rem;">VS</div>
+                <div class="combatant monster" id="arena-monster">
+                    <div class="hp-bar-container" id="monster-hp-container" style="opacity:0">
+                        <div class="hp-bar" style="width: 100%"></div>
+                    </div>
+                    <div class="combatant-emoji" id="arena-monster-emoji"></div>
+                </div>
+            </div>
+
+            <div class="combat-log" id="combat-log">
+                <div class="log-entry system">전투 시작 대기중...</div>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <button class="attack-btn-lg" id="attack-btn" onclick="game.heroAttack()">🔥 공격하기 (Turn)</button>
+            </div>
+        </section>
+
+        <!-- Flyweight -->
+        <section class="glass-panel control-panel">
+            <h2>Flyweight Pattern <span style="font-size:0.8rem; opacity:0.7;">(메모리 절약)</span></h2>
+
+            <div class="toggle-container">
+                <div>
+                    <strong>Flyweight Mode</strong>
+                    <div id="mode-desc" style="font-size: 0.8rem; color: var(--text-muted);">Memory Saved: On</div>
+                    <div id="naive-warning" class="warning-text">⚠️ REAL RAM ALLOCATION (MB++)</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flyweight-toggle" checked onchange="game.toggleMode()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="spawner-controls">
+                <button onclick="game.spawnMonsters('slime', 1)">
+                    +1 개
+                    <div class="spawn-progress"></div>
+                </button>
+                <button onclick="game.spawnMonsters('goblin', 100)">
+                    +100 개
+                    <div class="spawn-progress"></div>
+                </button>
+                <button onclick="game.spawnMonstersAsync('dragon', 5000, this)"
+                    style="border-color: var(--accent); color: var(--accent);">
+                    +5천 (Async)
+                    <div class="spawn-progress"></div>
+                </button>
+            </div>
+
+            <div class="monster-horde-view" id="horde-view">
+                <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding-top: 2rem;">몬스터 없음
+                </div>
+            </div>
+
+            <div style="display:flex; gap:0.5rem;">
+                <button onclick="game.clearMonsters()"
+                    style="flex:1; background: rgba(255,255,255,0.05); color: var(--text-muted);">
+                    🗑️ 모두 제거
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <div class="pattern-info">
+        <div class="glass-panel">
+            <h3>🌉 Bridge Pattern Code</h3>
+            <div class="code-snippet">
+                const output = <span class="highlight">this.weapon.use()</span>;<br>
+                log(`${name} ${output}`); // 구현체 반환값 활용<br>
+                // Abstraction(영웅)은 Weapon의 구체 로직을 모른 채<br>
+                // 결과를 받아 UI에 반영합니다.
+            </div>
+        </div>
+        <div class="glass-panel">
+            <h3>🍃 Real Memory & Optimization</h3>
+            <div class="code-snippet">
+                // Naive Mode (Real RAM usage)<br>
+                <span class="highlight">this.heavyData = new Uint8Array(2048 * 1024);</span><br>
+                // Flyweight<br>
+                <span class="highlight">this.heavyData</span> = type.heavyData; // Reference
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // BRIDGE PATTERN
+        // ==========================================
+        class Weapon {
+            use() { throw "Override required"; }
+            getName() { throw "Override required"; }
+            getEmoji() { return "❓"; }
+            getDamage() { return 10; }
+        }
+
+        class Sword extends Weapon {
+            use() {
+                return {
+                    text: "가 성스럽게 베어냅니다!",
+                    effect: "slash"
+                };
+            }
+            getName() { return "롱소드"; }
+            getEmoji() { return "🗡️"; }
+            getDamage() { return 15; }
+        }
+
+        class Bow extends Weapon {
+            use() {
+                return {
+                    text: "가 정확하게 조준하여 쏩니다!",
+                    effect: "pierce"
+                };
+            }
+            getName() { return "엘프의 활"; }
+            getEmoji() { return "🏹"; }
+            getDamage() { return 12; }
+        }
+
+        class Staff extends Weapon {
+            use() {
+                return {
+                    text: "가 고대 주문을 외웁니다!",
+                    effect: "magic"
+                };
+            }
+            getName() { return "현자의 지팡이"; }
+            getEmoji() { return "🔮"; }
+            getDamage() { return 25; }
+        }
+
+        class Character {
+            constructor(weapon) {
+                this.weapon = weapon;
+                this.hp = 100;
+                this.maxHp = 100;
+                this.name = "Character";
+                this.emoji = "👤";
+            }
+            setWeapon(weapon) {
+                this.weapon = weapon;
+                log(`[Bridge] ${this.name} -> ${weapon.getName()} 장착`, 'system');
+            }
+            attack(target) {
+                if (!target) return false;
+
+                const baseDmg = this.weapon.getDamage();
+                const action = this.weapon.use(); // Returns Object now {text, effect}
+
+                playAttackAnim('arena-hero', this.weapon.getEmoji());
+                const killed = target.takeDamage(baseDmg);
+
+                log(`${this.name}${action.text} (${baseDmg} DMG)`, 'player');
+
+                if (killed) {
+                    log(`${target.name} 처치! (+XP)`, 'system');
+                }
+                return killed;
+            }
+            takeDamage(amount) {
+                this.hp -= amount;
+                if (this.hp < 0) this.hp = 0;
+                // Pure Logic: UI update removed
+                return this.hp <= 0;
+            }
+        }
+
+        class Warrior extends Character {
+            constructor(weapon) {
+                super(weapon);
+                this.name = "전사";
+                this.emoji = "🛡️";
+                this.hp = 150;
+                this.maxHp = 150;
+            }
+        }
+
+        class Mage extends Character {
+            constructor(weapon) {
+                super(weapon);
+                this.name = "마법사";
+                this.emoji = "🧙‍♂️";
+                this.hp = 80;
+                this.maxHp = 80;
+            }
+        }
+
+        // ==========================================
+        // FLYWEIGHT PATTERN
+        // ==========================================
+        class MonsterType {
+            constructor(name, emoji, maxHp, dmg, textureSizeKB) {
+                this.name = name;
+                this.emoji = emoji;
+                this.maxHp = maxHp;
+                this.dmg = dmg;
+                this.textureSizeKB = textureSizeKB;
+                // ALLOCATE REAL MEMORY (Shared)
+                this.heavyData = new Uint8Array(textureSizeKB * 1024);
+                window.lastAllocated = this.heavyData[0]; // prevent opt-out
+            }
+        }
+
+        class MonsterFactory {
+            static types = {};
+            static get(key) {
+                let isNew = false;
+                if (!this.types[key]) {
+                    isNew = true;
+                    switch (key) {
+                        case 'slime': this.types[key] = new MonsterType('슬라임', '💧', 30, 5, 200); break;
+                        case 'goblin': this.types[key] = new MonsterType('고블린', '👺', 60, 10, 500); break;
+                        case 'dragon': this.types[key] = new MonsterType('드래곤', '🐲', 300, 30, 1024); break; // 1MB
+                    }
+                }
+                return { type: this.types[key], isNew };
+            }
+        }
+
+        class Monster {
+            constructor(type, isNaive = false) {
+                if (isNaive) {
+                    // REAL MEMORY DUPLICATION
+                    this.type = { ...type }; // Shallow copy props
+                    // Deep copy Heavy Data to ACTUALLY use RAM
+                    this.type.heavyData = new Uint8Array(type.textureSizeKB * 1024);
+                    window.lastAllocated = this.type.heavyData[0]; // prevent optimization
+                } else {
+                    this.type = type; // Shared Reference
+                }
+                this.hp = this.type.maxHp;
+                this.id = Math.random().toString(36).substr(2, 5);
+            }
+
+            get name() { return this.type.name; }
+
+            takeDamage(amount) {
+                this.hp -= amount;
+                // Pure Logic: UI update removed
+                return this.hp <= 0;
+            }
+
+            attack(target) {
+                log(`${this.type.name}의 반격! ${this.type.dmg} 피해!`, 'enemy');
+                playAttackAnim('arena-monster', '💢');
+                target.takeDamage(this.type.dmg);
+            }
+        }
+
+        // ==========================================
+        // GAME ENGINE
+        // ==========================================
+        const stats = {
+            totalSpawned: 0,
+            activeObjects: 0,
+            isFlyweightMode: true
+        };
+
+        const GameUI = {
+            renderHero(hero) {
+                // Preview Panel
+                document.getElementById('hero-model').innerHTML = `${hero.emoji}
+                    <div id="weapon-badge" class="weapon-badge">${hero.weapon.getEmoji()}</div>`;
+                document.getElementById('hero-name').innerText = `${hero.name} (${hero.constructor.name})`;
+
+                // Arena Panel
+                document.getElementById('arena-hero-emoji').innerText = hero.emoji;
+
+                updateArenaHeroHP(hero.hp, hero.maxHp);
+            },
+            updateStats(active) {
+                document.getElementById('obj-count').innerText = active.toLocaleString();
+                document.getElementById('total-spawned').innerText = stats.totalSpawned.toLocaleString();
+                document.getElementById('fly-count').innerText =
+                    stats.isFlyweightMode ? Object.keys(MonsterFactory.types).length : 0;
+
+                // Memory Calculation (Approximation of what we allocated)
+                let totalKB = 0;
+                // Base structure overhead
+                totalKB += active * 0.2;
+
+                if (stats.isFlyweightMode) {
+                    for (let k in MonsterFactory.types) {
+                        totalKB += MonsterFactory.types[k].textureSizeKB;
+                    }
+                } else {
+                    // In naive mode, we have to iterate or approximate since dragons are huge but slimes are small
+                    // For demo speed, we approximate based on average allocated active items
+                    // Or precise tracking if we stored it. 
+                    // Let's use game.naiveMemoryKB for accuracy
+                    totalKB = game.naiveMemoryKB;
+                }
+
+                let displayStr = totalKB < 1024 ?
+                    `${Math.round(totalKB)} KB` :
+                    `${(totalKB / 1024).toFixed(2)} MB`;
+
+                if (totalKB > 1024 * 1024) displayStr = `${(totalKB / (1024 * 1024)).toFixed(2)} GB (!)`;
+
+                document.getElementById('mem-usage').innerText = displayStr;
+            }
+        };
+
+        class Game {
+            constructor() {
+                this.hero = new Warrior(new Sword());
+                this.monsters = [];
+                this.headIndex = 0;
+                this.activeCount = 0;
+                this.naiveMemoryKB = 0;
+
+                GameUI.renderHero(this.hero);
+                this.updateHordeUI();
+            }
+
+            toggleMode() {
+                stats.isFlyweightMode = document.getElementById('flyweight-toggle').checked;
+                const warn = document.getElementById('naive-warning');
+                const desc = document.getElementById('mode-desc');
+
+                if (stats.isFlyweightMode) {
+                    warn.style.display = 'none';
+                    desc.innerText = "Memory Saved: On";
+                } else {
+                    warn.style.display = 'block';
+                    desc.innerText = "Memory Saved: Off (Real RAM Alloc)";
+                }
+
+                this.clearMonsters();
+                log(stats.isFlyweightMode ? "모드: Flyweight (공유)" : "모드: Naive (복제)", 'system');
+            }
+
+            setHero(type) {
+                const currentWeapon = this.hero.weapon;
+                if (type === 'warrior') this.hero = new Warrior(currentWeapon);
+                else this.hero = new Mage(currentWeapon);
+
+                document.querySelectorAll('.hero-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.hero === type));
+                GameUI.renderHero(this.hero);
+            }
+
+            setWeapon(type) {
+                let w;
+                switch (type) {
+                    case 'sword': w = new Sword(); break;
+                    case 'bow': w = new Bow(); break;
+                    case 'staff': w = new Staff(); break;
+                }
+                this.hero.setWeapon(w);
+                document.querySelectorAll('.weapon-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.weapon === type));
+                GameUI.renderHero(this.hero);
+            }
+
+            spawnMonsters(key, count) {
+                const { type, isNew } = MonsterFactory.get(key);
+                if (isNew && stats.isFlyweightMode) {
+                    log(`새 타입 발견: ${type.name} (텍스처 로드)`, 'system');
+                }
+                for (let i = 0; i < count; i++) {
+                    this.createMonster(type);
+                }
+                this.postSpawnUpdate(count, type.emoji);
+            }
+
+            spawnMonstersAsync(key, count, btnElement) {
+                const { type, isNew } = MonsterFactory.get(key);
+                if (isNew && stats.isFlyweightMode) log(`새 타입 발견: ${type.name}`, 'system');
+
+                const CHUNK_SIZE = 200; // Smaller chunk for responsiveness
+                let spawned = 0;
+
+                btnElement.disabled = true;
+                const progress = btnElement.querySelector('.spawn-progress');
+                progress.style.width = '0%';
+
+                const spawnStep = () => {
+                    const batch = Math.min(CHUNK_SIZE, count - spawned);
+                    for (let i = 0; i < batch; i++) {
+                        this.createMonster(type);
+                    }
+                    spawned += batch;
+
+                    progress.style.width = `${(spawned / count) * 100}%`;
+                    this.postSpawnUpdate(0, null);
+
+                    if (spawned < count) {
+                        requestAnimationFrame(spawnStep);
+                    } else {
+                        btnElement.disabled = false;
+                        progress.style.width = '0%';
+                        this.postSpawnUpdate(count, type.emoji);
+                        log(`비동기 생성 완료: +${count} ${type.name}`, 'system');
+                    }
+                };
+
+                requestAnimationFrame(spawnStep);
+                log(`대량 생성 시작...`, 'system');
+            }
+
+            createMonster(type) {
+                const m = new Monster(type, !stats.isFlyweightMode);
+                this.monsters.push(m);
+                this.activeCount++;
+                stats.totalSpawned++;
+                if (!stats.isFlyweightMode) {
+                    this.naiveMemoryKB += type.textureSizeKB;
+                }
+            }
+
+            postSpawnUpdate(countMessage, emoji) {
+                GameUI.updateStats(this.activeCount);
+                this.updateHordeUI();
+                // Always try to render. If we were empty, this shows the new monster.
+                // If we were fighting, this just refreshes the current view (safe).
+                this.renderCurrentMonster();
+            }
+
+            getCurrentMonster() {
+                if (this.headIndex >= this.monsters.length) return null;
+                return this.monsters[this.headIndex];
+            }
+
+            heroAttack() {
+                const target = this.getCurrentMonster();
+                if (!target) {
+                    log("공격할 적이 없습니다.", 'system');
+                    return;
+                }
+
+                document.getElementById('attack-btn').disabled = true;
+
+                const killed = this.hero.attack(target);
+
+                // Fix: Sync UI for Monster HP
+                updateArenaMonsterHP(target.hp, target.type.maxHp);
+                if (!killed) {
+                    const el = document.getElementById('arena-monster');
+                    el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+                }
+
+                if (killed) {
+                    this.headIndex++;
+                    this.activeCount--;
+
+                    if (!stats.isFlyweightMode) {
+                        this.naiveMemoryKB -= target.type.textureSizeKB;
+                    }
+
+                    if (this.headIndex > 1000 && this.headIndex > this.monsters.length * 0.25) {
+                        this.monsters = this.monsters.slice(this.headIndex);
+                        this.headIndex = 0;
+                    }
+
+                    GameUI.updateStats(this.activeCount);
+                    this.updateHordeUI();
+
+                    setTimeout(() => {
+                        this.renderCurrentMonster();
+                        document.getElementById('attack-btn').disabled = false;
+                    }, 200);
+                } else {
+                    // Counter Attack Loop
+                    setTimeout(() => {
+                        if (this.hero.hp > 0) {
+                            target.attack(this.hero);
+                            // Fix: Sync UI after domain logic
+                            updateArenaHeroHP(this.hero.hp, this.hero.maxHp);
+                            const el = document.getElementById('arena-hero');
+                            el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+                        }
+                        document.getElementById('attack-btn').disabled = false;
+                    }, 500);
+                }
+            }
+
+            renderCurrentMonster() {
+                const m = this.getCurrentMonster();
+                const hpContainer = document.getElementById('monster-hp-container');
+                if (m) {
+                    document.getElementById('arena-monster-emoji').innerText = m.type.emoji;
+                    hpContainer.style.opacity = '1';
+                    updateArenaMonsterHP(m.hp, m.type.maxHp);
+                } else {
+                    document.getElementById('arena-monster-emoji').innerText = "";
+                    hpContainer.style.opacity = '0';
+                }
+            }
+
+            clearMonsters() {
+                this.monsters = [];
+                this.headIndex = 0;
+                this.activeCount = 0;
+                this.naiveMemoryKB = 0;
+                stats.totalSpawned = 0;
+
+                GameUI.updateStats(0);
+                this.updateHordeUI();
+                this.renderCurrentMonster();
+                // Reset Hero HP for convenience
+                this.hero.hp = this.hero.maxHp;
+                GameUI.renderHero(this.hero);
+            }
+
+            updateHordeUI() {
+                const container = document.getElementById('horde-view');
+                const maxRender = 20;
+                const remaining = this.monsters.length - this.headIndex;
+
+                if (remaining <= 0) {
+                    container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding-top: 2rem;">몬스터 없음</div>';
+                    return;
+                }
+
+                let html = '';
+                for (let i = 0; i < Math.min(remaining, maxRender); i++) {
+                    const m = this.monsters[this.headIndex + i];
+                    const isActive = (i === 0) ? 'active' : '';
+                    html += `<div class="mini-monster ${isActive}">${m.type.emoji}</div>`;
+                }
+
+                if (remaining > maxRender) {
+                    html += `<div class="mini-monster" style="font-size:0.8rem; padding-top:0.8rem;">+${remaining - maxRender}</div>`;
+                }
+
+                container.innerHTML = html;
+            }
+        }
+
+        // Utils
+        const game = new Game();
+
+        function log(msg, type) {
+            const el = document.getElementById('combat-log');
+            if (el.children.length > 50) el.removeChild(el.firstChild);
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerText = `> ${msg}`;
+            el.appendChild(entry);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function playAttackAnim(id, emoji) {
+            const p = document.getElementById(id);
+            const f = document.createElement('div');
+            f.className = 'damage-float';
+            f.innerText = emoji;
+            p.appendChild(f);
+            setTimeout(() => f.remove(), 800);
+        }
+
+        function updateArenaHeroHP(cur, max) {
+            document.querySelector('#arena-hero .hp-bar').style.width = Math.max(0, (cur / max) * 100) + '%';
+        }
+        function updateArenaMonsterHP(cur, max) {
+            document.querySelector('#arena-monster .hp-bar').style.width = Math.max(0, (cur / max) * 100) + '%';
+        }
+
+    </script>
+</body>
+
+</html>
